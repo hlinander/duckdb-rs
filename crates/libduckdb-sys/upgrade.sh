@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 set -e
 
@@ -16,7 +16,7 @@ DUCKDB_VERSION=v1.2.0
 git submodule update --init --checkout
 cd "$SCRIPT_DIR/duckdb-sources"
 git fetch
-git checkout "$DUCKDB_VERSION"
+git checkout "$DUCKDB_VERSION-interrupt"
 cd "$SCRIPT_DIR"
 python3 "$SCRIPT_DIR/update_sources.py"
 
