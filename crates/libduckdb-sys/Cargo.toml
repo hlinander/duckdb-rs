@@ -16,7 +16,7 @@ exclude = ["duckdb-sources"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
-default = ["vcpkg", "pkg-config"]
+default = ["vcpkg", "pkg-config", "bundled"]
 bundled = ["cc"]
 buildtime_bindgen = ["bindgen", "pkg-config", "vcpkg"]
 json = ["bundled"]

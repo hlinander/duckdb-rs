@@ -133,9 +133,12 @@ mod build_bundled {
         #[cfg(feature = "json")]
         add_extension(&mut cfg, &manifest, "json", &mut cpp_files, &mut include_dirs);
 
+        println!("cargo:rustc-env=DUCKDB_EXPLICIT_VERSION=v1.3.0");
+
         // duckdb/tools/pythonpkg/setup.py
         cfg.define("DUCKDB_EXTENSION_AUTOINSTALL_DEFAULT", "1");
         cfg.define("DUCKDB_EXTENSION_AUTOLOAD_DEFAULT", "1");
+        cfg.define("DUCKDB_EXPLICIT_VERSION", "v1.3.0");
 
         // Since the manifest controls the set of files, we require it to be changed to know whether
         // to rebuild the project
