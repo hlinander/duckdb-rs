@@ -140,13 +140,13 @@ pub const duckdb_cast_mode_DUCKDB_CAST_TRY: duckdb_cast_mode = 1;
 pub type duckdb_cast_mode = ::std::os::raw::c_uint;
 #[doc = "! DuckDB's index type."]
 pub type idx_t = u64;
-#[doc = "! Type used for the selection vector"]
+#[doc = "! Type definition for the data pointers of selection vectors."]
 pub type sel_t = u32;
-#[doc = "! The callback that will be called to destroy data, e.g.,\n! bind data (if any), init data (if any), extra data for replacement scans (if any)"]
+#[doc = "! The callback to destroy data, e.g.,\n! bind data (if any), init data (if any), extra data for replacement scans (if any), etc."]
 pub type duckdb_delete_callback_t = ::std::option::Option<unsafe extern "C" fn(data: *mut ::std::os::raw::c_void)>;
-#[doc = "! Used for threading, contains a task state. Must be destroyed with `duckdb_destroy_task_state`."]
+#[doc = "! Used for threading, contains a task state.\n! Must be destroyed with `duckdb_destroy_task_state`."]
 pub type duckdb_task_state = *mut ::std::os::raw::c_void;
-#[doc = "! Days are stored as days since 1970-01-01\n! Use the duckdb_from_date/duckdb_to_date function to extract individual information"]
+#[doc = "! DATE is stored as days since 1970-01-01.\n! Use the `duckdb_from_date` and `duckdb_to_date` functions to extract individual information."]
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct duckdb_date {
@@ -159,7 +159,7 @@ pub struct duckdb_date_struct {
     pub month: i8,
     pub day: i8,
 }
-#[doc = "! Time is stored as microseconds since 00:00:00\n! Use the duckdb_from_time/duckdb_to_time function to extract individual information"]
+#[doc = "! TIME is stored as microseconds since 00:00:00.\n! Use the `duckdb_from_time` and `duckdb_to_time` functions to extract individual information."]
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct duckdb_time {
@@ -173,7 +173,7 @@ pub struct duckdb_time_struct {
     pub sec: i8,
     pub micros: i32,
 }
-#[doc = "! TIME_TZ is stored as 40 bits for int64_t micros, and 24 bits for int32_t offset"]
+#[doc = "! TIME_TZ is stored as 40 bits for the int64_t microseconds, and 24 bits for the int32_t offset.\n! Use the `duckdb_from_time_tz` function to extract individual information."]
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct duckdb_time_tz {
@@ -185,29 +185,11 @@ pub struct duckdb_time_tz_struct {
     pub time: duckdb_time_struct,
     pub offset: i32,
 }
-#[doc = "! TIMESTAMP values are stored as microseconds since 1970-01-01.\n! Use the duckdb_from_timestamp and duckdb_to_timestamp functions to extract individual information."]
+#[doc = "! TIMESTAMP is stored as microseconds since 1970-01-01.\n! Use the `duckdb_from_timestamp` and `duckdb_to_timestamp` functions to extract individual information."]
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct duckdb_timestamp {
     pub micros: i64,
-}
-#[doc = "! TIMESTAMP_S values are stored as seconds since 1970-01-01."]
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct duckdb_timestamp_s {
-    pub seconds: i64,
-}
-#[doc = "! TIMESTAMP_MS values are stored as milliseconds since 1970-01-01."]
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct duckdb_timestamp_ms {
-    pub millis: i64,
-}
-#[doc = "! TIMESTAMP_NS values are stored as nanoseconds since 1970-01-01."]
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct duckdb_timestamp_ns {
-    pub nanos: i64,
 }
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
@@ -215,6 +197,25 @@ pub struct duckdb_timestamp_struct {
     pub date: duckdb_date_struct,
     pub time: duckdb_time_struct,
 }
+#[doc = "! TIMESTAMP_S is stored as seconds since 1970-01-01."]
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct duckdb_timestamp_s {
+    pub seconds: i64,
+}
+#[doc = "! TIMESTAMP_MS is stored as milliseconds since 1970-01-01."]
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct duckdb_timestamp_ms {
+    pub millis: i64,
+}
+#[doc = "! TIMESTAMP_NS is stored as nanoseconds since 1970-01-01."]
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct duckdb_timestamp_ns {
+    pub nanos: i64,
+}
+#[doc = "! INTERVAL is stored in months, days, and micros."]
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct duckdb_interval {
@@ -222,20 +223,21 @@ pub struct duckdb_interval {
     pub days: i32,
     pub micros: i64,
 }
-#[doc = "! Hugeints are composed of a (lower, upper) component\n! The value of the hugeint is upper * 2^64 + lower\n! For easy usage, the functions duckdb_hugeint_to_double/duckdb_double_to_hugeint are recommended"]
+#[doc = "! HUGEINT is composed of a lower and upper component.\n! Its value is upper * 2^64 + lower.\n! For simplified usage, use `duckdb_hugeint_to_double` and `duckdb_double_to_hugeint`."]
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct duckdb_hugeint {
     pub lower: u64,
     pub upper: i64,
 }
+#[doc = "! UHUGEINT is composed of a lower and upper component.\n! Its value is upper * 2^64 + lower.\n! For simplified usage, use `duckdb_uhugeint_to_double` and `duckdb_double_to_uhugeint`."]
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct duckdb_uhugeint {
     pub lower: u64,
     pub upper: u64,
 }
-#[doc = "! Decimals are composed of a width and a scale, and are stored in a hugeint"]
+#[doc = "! DECIMAL is composed of a width and a scale.\n! Their value is stored in a HUGEINT."]
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct duckdb_decimal {
@@ -243,7 +245,7 @@ pub struct duckdb_decimal {
     pub scale: u8,
     pub value: duckdb_hugeint,
 }
-#[doc = "! A type holding information about the query execution progress"]
+#[doc = "! A type holding information about the query execution progress."]
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct duckdb_query_progress_type {
@@ -251,7 +253,7 @@ pub struct duckdb_query_progress_type {
     pub rows_processed: u64,
     pub total_rows_to_process: u64,
 }
-#[doc = "! The internal representation of a VARCHAR (string_t). If the VARCHAR does not\n! exceed 12 characters, then we inline it. Otherwise, we inline a prefix for faster\n! string comparisons and store a pointer to the remaining characters. This is a non-\n! owning structure, i.e., it does not have to be freed."]
+#[doc = "! The internal representation of a VARCHAR (string_t). If the VARCHAR does not\n! exceed 12 characters, then we inline it. Otherwise, we inline a four-byte prefix for faster\n! string comparisons and store a pointer to the remaining characters. This is a non-\n! owning structure, i.e., it does not have to be freed."]
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct duckdb_string_t {
@@ -276,14 +278,14 @@ pub struct duckdb_string_t__bindgen_ty_1__bindgen_ty_2 {
     pub length: u32,
     pub inlined: [::std::os::raw::c_char; 12usize],
 }
-#[doc = "! The internal representation of a list metadata entry contains the list's offset in\n! the child vector, and its length. The parent vector holds these metadata entries,\n! whereas the child vector holds the data"]
+#[doc = "! DuckDB's LISTs are composed of a 'parent' vector holding metadata of each list,\n! and a child vector holding the entries of the lists.\n! The `duckdb_list_entry` struct contains the internal representation of a LIST metadata entry.\n! A metadata entry contains the length of the list, and its offset in the child vector."]
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct duckdb_list_entry {
     pub offset: u64,
     pub length: u64,
 }
-#[doc = "! A column consists of a pointer to its internal data. Don't operate on this type directly.\n! Instead, use functions such as duckdb_column_data, duckdb_nullmask_data,\n! duckdb_column_type, and duckdb_column_name, which take the result and the column index\n! as their parameters"]
+#[doc = "! A column consists of a pointer to its internal data. Don't operate on this type directly.\n! Instead, use functions such as `duckdb_column_data`, `duckdb_nullmask_data`,\n! `duckdb_column_type`, and `duckdb_column_name`."]
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct duckdb_column {
@@ -293,44 +295,44 @@ pub struct duckdb_column {
     pub deprecated_name: *mut ::std::os::raw::c_char,
     pub internal_data: *mut ::std::os::raw::c_void,
 }
-#[doc = "! A vector to a specified column in a data chunk. Lives as long as the\n! data chunk lives, i.e., must not be destroyed."]
+#[doc = "! 1. A standalone vector that must be destroyed, or\n! 2. A vector to a column in a data chunk that lives as long as the data chunk lives."]
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct _duckdb_vector {
     pub internal_ptr: *mut ::std::os::raw::c_void,
 }
-#[doc = "! A vector to a specified column in a data chunk. Lives as long as the\n! data chunk lives, i.e., must not be destroyed."]
+#[doc = "! 1. A standalone vector that must be destroyed, or\n! 2. A vector to a column in a data chunk that lives as long as the data chunk lives."]
 pub type duckdb_vector = *mut _duckdb_vector;
-#[doc = "! A selection vector is a possibly duplicative vector of indices, which refer to values in a vector.\n! The resulting vector is make up of the values at each index in the selection vector."]
+#[doc = "! A selection vector is a vector of indices, which usually refer to values in a vector.\n! Can be used to slice vectors, changing their length and the order of their entries.\n! Standalone selection vectors must be destroyed."]
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct _duckdb_selection_vector {
     pub internal_ptr: *mut ::std::os::raw::c_void,
 }
-#[doc = "! A selection vector is a possibly duplicative vector of indices, which refer to values in a vector.\n! The resulting vector is make up of the values at each index in the selection vector."]
+#[doc = "! A selection vector is a vector of indices, which usually refer to values in a vector.\n! Can be used to slice vectors, changing their length and the order of their entries.\n! Standalone selection vectors must be destroyed."]
 pub type duckdb_selection_vector = *mut _duckdb_selection_vector;
-#[doc = "! Strings are composed of a char pointer and a size. You must free string.data\n! with `duckdb_free`."]
+#[doc = "! Strings are composed of a `char` pointer and a size.\n! You must free `string.data` with `duckdb_free`."]
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct duckdb_string {
     pub data: *mut ::std::os::raw::c_char,
     pub size: idx_t,
 }
-#[doc = "! BLOBs are composed of a byte pointer and a size. You must free blob.data\n! with `duckdb_free`."]
+#[doc = "! BLOBs are composed of a byte pointer and a size.\n! You must free `blob.data` with `duckdb_free`."]
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct duckdb_blob {
     pub data: *mut ::std::os::raw::c_void,
     pub size: idx_t,
 }
-#[doc = "! BITs are composed of a byte pointer and a size.\n! BIT byte data has 0 to 7 bits of padding.\n! The first byte contains the number of padding bits.\n! This number of bits of the second byte are set to 1, starting from the MSB.\n! You must free `data` with `duckdb_free`."]
+#[doc = "! BITs are composed of a byte pointer and a size.\n! BIT byte data has 0 to 7 bits of padding.\n! The first byte contains the number of padding bits.\n! The padding bits of the second byte are set to 1, starting from the MSB.\n! You must free `data` with `duckdb_free`."]
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct duckdb_bit {
     pub data: *mut u8,
     pub size: idx_t,
 }
-#[doc = "! VARINTs are composed of a byte pointer, a size, and an is_negative bool.\n! The absolute value of the number is stored in `data` in little endian format.\n! You must free `data` with `duckdb_free`."]
+#[doc = "! VARINTs are composed of a byte pointer, a size, and an `is_negative` bool.\n! The absolute value of the number is stored in `data` in little endian format.\n! You must free `data` with `duckdb_free`."]
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct duckdb_varint {
@@ -413,69 +415,77 @@ pub struct _duckdb_appender {
 }
 #[doc = "! The appender enables fast data loading into DuckDB.\n! Must be destroyed with `duckdb_appender_destroy`."]
 pub type duckdb_appender = *mut _duckdb_appender;
-#[doc = "! The table description allows querying info about the table.\n! Must be destroyed with `duckdb_table_description_destroy`."]
+#[doc = "! The table description allows querying information about the table.\n! Must be destroyed with `duckdb_table_description_destroy`."]
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct _duckdb_table_description {
     pub internal_ptr: *mut ::std::os::raw::c_void,
 }
-#[doc = "! The table description allows querying info about the table.\n! Must be destroyed with `duckdb_table_description_destroy`."]
+#[doc = "! The table description allows querying information about the table.\n! Must be destroyed with `duckdb_table_description_destroy`."]
 pub type duckdb_table_description = *mut _duckdb_table_description;
-#[doc = "! Can be used to provide start-up options for the DuckDB instance.\n! Must be destroyed with `duckdb_destroy_config`."]
+#[doc = "! The configuration can be used to provide start-up options for a database.\n! Must be destroyed with `duckdb_destroy_config`."]
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct _duckdb_config {
     pub internal_ptr: *mut ::std::os::raw::c_void,
 }
-#[doc = "! Can be used to provide start-up options for the DuckDB instance.\n! Must be destroyed with `duckdb_destroy_config`."]
+#[doc = "! The configuration can be used to provide start-up options for a database.\n! Must be destroyed with `duckdb_destroy_config`."]
 pub type duckdb_config = *mut _duckdb_config;
-#[doc = "! Holds an internal logical type.\n! Must be destroyed with `duckdb_destroy_logical_type`."]
+#[doc = "! A logical type.\n! Must be destroyed with `duckdb_destroy_logical_type`."]
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct _duckdb_logical_type {
     pub internal_ptr: *mut ::std::os::raw::c_void,
 }
-#[doc = "! Holds an internal logical type.\n! Must be destroyed with `duckdb_destroy_logical_type`."]
+#[doc = "! A logical type.\n! Must be destroyed with `duckdb_destroy_logical_type`."]
 pub type duckdb_logical_type = *mut _duckdb_logical_type;
-#[doc = "! Holds extra information used when registering a custom logical type.\n! Reserved for future use."]
+#[doc = "! Holds extra information to register a custom logical type.\n! Reserved for future use."]
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct _duckdb_create_type_info {
     pub internal_ptr: *mut ::std::os::raw::c_void,
 }
-#[doc = "! Holds extra information used when registering a custom logical type.\n! Reserved for future use."]
+#[doc = "! Holds extra information to register a custom logical type.\n! Reserved for future use."]
 pub type duckdb_create_type_info = *mut _duckdb_create_type_info;
-#[doc = "! Contains a data chunk from a duckdb_result.\n! Must be destroyed with `duckdb_destroy_data_chunk`."]
+#[doc = "! Contains a data chunk of a duckdb_result.\n! Must be destroyed with `duckdb_destroy_data_chunk`."]
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct _duckdb_data_chunk {
     pub internal_ptr: *mut ::std::os::raw::c_void,
 }
-#[doc = "! Contains a data chunk from a duckdb_result.\n! Must be destroyed with `duckdb_destroy_data_chunk`."]
+#[doc = "! Contains a data chunk of a duckdb_result.\n! Must be destroyed with `duckdb_destroy_data_chunk`."]
 pub type duckdb_data_chunk = *mut _duckdb_data_chunk;
-#[doc = "! Holds a DuckDB value, which wraps a type.\n! Must be destroyed with `duckdb_destroy_value`."]
+#[doc = "! A value of a logical type.\n! Must be destroyed with `duckdb_destroy_value`."]
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct _duckdb_value {
     pub internal_ptr: *mut ::std::os::raw::c_void,
 }
-#[doc = "! Holds a DuckDB value, which wraps a type.\n! Must be destroyed with `duckdb_destroy_value`."]
+#[doc = "! A value of a logical type.\n! Must be destroyed with `duckdb_destroy_value`."]
 pub type duckdb_value = *mut _duckdb_value;
-#[doc = "! Holds a recursive tree that matches the query plan."]
+#[doc = "! Holds a recursive tree containing profiling metrics.\n! The tree matches the query plan, and has a top-level node."]
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct _duckdb_profiling_info {
     pub internal_ptr: *mut ::std::os::raw::c_void,
 }
-#[doc = "! Holds a recursive tree that matches the query plan."]
+#[doc = "! Holds a recursive tree containing profiling metrics.\n! The tree matches the query plan, and has a top-level node."]
 pub type duckdb_profiling_info = *mut _duckdb_profiling_info;
-#[doc = "! Holds state during the C API extension intialization process"]
+#[doc = "! Holds error data.\n! Must be destroyed with `duckdb_destroy_error_data`."]
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct _duckdb_error_data {
+    pub internal_ptr: *mut ::std::os::raw::c_void,
+}
+#[doc = "! Holds error data.\n! Must be destroyed with `duckdb_destroy_error_data`."]
+pub type duckdb_error_data = *mut _duckdb_error_data;
+#[doc = "! Holds the state of the C API extension initialization process."]
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct _duckdb_extension_info {
     pub internal_ptr: *mut ::std::os::raw::c_void,
 }
-#[doc = "! Holds state during the C API extension intialization process"]
+#[doc = "! Holds the state of the C API extension initialization process."]
 pub type duckdb_extension_info = *mut _duckdb_extension_info;
 #[doc = "! Additional function info.\n! When setting this info, it is necessary to pass a destroy-callback function."]
 #[repr(C)]
@@ -509,9 +519,9 @@ pub struct _duckdb_scalar_function_set {
 }
 #[doc = "! A scalar function set. Must be destroyed with `duckdb_destroy_scalar_function_set`."]
 pub type duckdb_scalar_function_set = *mut _duckdb_scalar_function_set;
-#[doc = "! The bind function of the scalar function."]
+#[doc = "! The bind function callback of the scalar function."]
 pub type duckdb_scalar_function_bind_t = ::std::option::Option<unsafe extern "C" fn(info: duckdb_bind_info)>;
-#[doc = "! The main function of the scalar function."]
+#[doc = "! The function to execute the scalar function on an input chunk."]
 pub type duckdb_scalar_function_t = ::std::option::Option<
     unsafe extern "C" fn(info: duckdb_function_info, input: duckdb_data_chunk, output: duckdb_vector),
 >;
@@ -531,27 +541,27 @@ pub struct _duckdb_aggregate_function_set {
 }
 #[doc = "! A aggregate function set. Must be destroyed with `duckdb_destroy_aggregate_function_set`."]
 pub type duckdb_aggregate_function_set = *mut _duckdb_aggregate_function_set;
-#[doc = "! Aggregate state"]
+#[doc = "! The state of an aggregate function."]
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct _duckdb_aggregate_state {
     pub internal_ptr: *mut ::std::os::raw::c_void,
 }
-#[doc = "! Aggregate state"]
+#[doc = "! The state of an aggregate function."]
 pub type duckdb_aggregate_state = *mut _duckdb_aggregate_state;
-#[doc = "! Returns the aggregate state size"]
+#[doc = "! A function to return the aggregate state's size."]
 pub type duckdb_aggregate_state_size = ::std::option::Option<unsafe extern "C" fn(info: duckdb_function_info) -> idx_t>;
-#[doc = "! Initialize the aggregate state"]
+#[doc = "! A function to initialize an aggregate state."]
 pub type duckdb_aggregate_init_t =
     ::std::option::Option<unsafe extern "C" fn(info: duckdb_function_info, state: duckdb_aggregate_state)>;
-#[doc = "! Destroy aggregate state (optional)"]
+#[doc = "! An optional function to destroy an aggregate state."]
 pub type duckdb_aggregate_destroy_t =
     ::std::option::Option<unsafe extern "C" fn(states: *mut duckdb_aggregate_state, count: idx_t)>;
-#[doc = "! Update a set of aggregate states with new values"]
+#[doc = "! A function to update a set of aggregate states with new values."]
 pub type duckdb_aggregate_update_t = ::std::option::Option<
     unsafe extern "C" fn(info: duckdb_function_info, input: duckdb_data_chunk, states: *mut duckdb_aggregate_state),
 >;
-#[doc = "! Combine aggregate states"]
+#[doc = "! A function to combine aggregate states."]
 pub type duckdb_aggregate_combine_t = ::std::option::Option<
     unsafe extern "C" fn(
         info: duckdb_function_info,
@@ -560,7 +570,7 @@ pub type duckdb_aggregate_combine_t = ::std::option::Option<
         count: idx_t,
     ),
 >;
-#[doc = "! Finalize aggregate states into a result vector"]
+#[doc = "! A function to finalize aggregate states into a result vector."]
 pub type duckdb_aggregate_finalize_t = ::std::option::Option<
     unsafe extern "C" fn(
         info: duckdb_function_info,
@@ -578,19 +588,19 @@ pub struct _duckdb_table_function {
 }
 #[doc = "! A table function. Must be destroyed with `duckdb_destroy_table_function`."]
 pub type duckdb_table_function = *mut _duckdb_table_function;
-#[doc = "! Additional function init info. When setting this info, it is necessary to pass a destroy-callback function."]
+#[doc = "! Additional function initialization info.\n! When setting this info, it is necessary to pass a destroy-callback function."]
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct _duckdb_init_info {
     pub internal_ptr: *mut ::std::os::raw::c_void,
 }
-#[doc = "! Additional function init info. When setting this info, it is necessary to pass a destroy-callback function."]
+#[doc = "! Additional function initialization info.\n! When setting this info, it is necessary to pass a destroy-callback function."]
 pub type duckdb_init_info = *mut _duckdb_init_info;
 #[doc = "! The bind function of the table function."]
 pub type duckdb_table_function_bind_t = ::std::option::Option<unsafe extern "C" fn(info: duckdb_bind_info)>;
-#[doc = "! The (possibly thread-local) init function of the table function."]
+#[doc = "! The possibly thread-local initialization function of the table function."]
 pub type duckdb_table_function_init_t = ::std::option::Option<unsafe extern "C" fn(info: duckdb_init_info)>;
-#[doc = "! The main function of the table function."]
+#[doc = "! The function to generate an output chunk during table function execution."]
 pub type duckdb_table_function_t =
     ::std::option::Option<unsafe extern "C" fn(info: duckdb_function_info, output: duckdb_data_chunk)>;
 #[doc = "! A cast function. Must be destroyed with `duckdb_destroy_cast_function`."]
@@ -601,6 +611,7 @@ pub struct _duckdb_cast_function {
 }
 #[doc = "! A cast function. Must be destroyed with `duckdb_destroy_cast_function`."]
 pub type duckdb_cast_function = *mut _duckdb_cast_function;
+#[doc = "! The function to cast from an input vector to an output vector."]
 pub type duckdb_cast_function_t = ::std::option::Option<
     unsafe extern "C" fn(info: duckdb_function_info, count: idx_t, input: duckdb_vector, output: duckdb_vector) -> bool,
 >;
@@ -612,7 +623,7 @@ pub struct _duckdb_replacement_scan_info {
 }
 #[doc = "! Additional replacement scan info. When setting this info, it is necessary to pass a destroy-callback function."]
 pub type duckdb_replacement_scan_info = *mut _duckdb_replacement_scan_info;
-#[doc = "! A replacement scan function that can be added to a database."]
+#[doc = "! A replacement scan function."]
 pub type duckdb_replacement_callback_t = ::std::option::Option<
     unsafe extern "C" fn(
         info: duckdb_replacement_scan_info,
@@ -652,16 +663,16 @@ pub struct _duckdb_arrow_array {
 }
 #[doc = "! Holds an arrow array. Remember to release the respective ArrowArray object."]
 pub type duckdb_arrow_array = *mut _duckdb_arrow_array;
-#[doc = "! Passed to C API extension as parameter to the entrypoint"]
+#[doc = "! Passed to C API extension as a parameter to the entrypoint."]
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct duckdb_extension_access {
-    #[doc = "! Indicate that an error has occurred"]
+    #[doc = "! Indicate that an error has occurred."]
     pub set_error:
         ::std::option::Option<unsafe extern "C" fn(info: duckdb_extension_info, error: *const ::std::os::raw::c_char)>,
-    #[doc = "! Fetch the database from duckdb to register extensions to"]
+    #[doc = "! Fetch the database on which to register the extension."]
     pub get_database: ::std::option::Option<unsafe extern "C" fn(info: duckdb_extension_info) -> *mut duckdb_database>,
-    #[doc = "! Fetch the API"]
+    #[doc = "! Fetch the API struct pointer."]
     pub get_api: ::std::option::Option<
         unsafe extern "C" fn(
             info: duckdb_extension_info,
@@ -1713,6 +1724,17 @@ pub struct duckdb_ext_api_v1 {
             row: idx_t,
         ) -> duckdb_state,
     >,
+    pub duckdb_appender_error_data:
+        ::std::option::Option<unsafe extern "C" fn(appender: duckdb_appender) -> duckdb_error_data>,
+    pub duckdb_create_error_data: ::std::option::Option<
+        unsafe extern "C" fn(type_: duckdb_error_type, message: *const ::std::os::raw::c_char) -> duckdb_error_data,
+    >,
+    pub duckdb_destroy_error_data: ::std::option::Option<unsafe extern "C" fn(error_data: *mut duckdb_error_data)>,
+    pub duckdb_error_data_error_type:
+        ::std::option::Option<unsafe extern "C" fn(error_data: duckdb_error_data) -> duckdb_error_type>,
+    pub duckdb_error_data_message:
+        ::std::option::Option<unsafe extern "C" fn(error_data: duckdb_error_data) -> *const ::std::os::raw::c_char>,
+    pub duckdb_error_data_has_error: ::std::option::Option<unsafe extern "C" fn(error_data: duckdb_error_data) -> bool>,
     pub duckdb_client_context_get_connection_id:
         ::std::option::Option<unsafe extern "C" fn(context: duckdb_client_context) -> idx_t>,
     pub duckdb_destroy_client_context: ::std::option::Option<unsafe extern "C" fn(context: *mut duckdb_client_context)>,
@@ -1742,6 +1764,8 @@ pub struct duckdb_ext_api_v1 {
     >,
     pub duckdb_scalar_function_get_bind_data:
         ::std::option::Option<unsafe extern "C" fn(info: duckdb_function_info) -> *mut ::std::os::raw::c_void>,
+    pub duckdb_scalar_function_bind_get_extra_info:
+        ::std::option::Option<unsafe extern "C" fn(info: duckdb_bind_info) -> *mut ::std::os::raw::c_void>,
     pub duckdb_value_to_string:
         ::std::option::Option<unsafe extern "C" fn(value: duckdb_value) -> *mut ::std::os::raw::c_char>,
     pub duckdb_create_map_value: ::std::option::Option<
@@ -1758,18 +1782,17 @@ pub struct duckdb_ext_api_v1 {
     pub duckdb_create_vector:
         ::std::option::Option<unsafe extern "C" fn(type_: duckdb_logical_type, capacity: idx_t) -> duckdb_vector>,
     pub duckdb_destroy_vector: ::std::option::Option<unsafe extern "C" fn(vector: *mut duckdb_vector)>,
-    pub duckdb_slice_vector: ::std::option::Option<
-        unsafe extern "C" fn(vector: duckdb_vector, selection: duckdb_selection_vector, len: idx_t),
-    >,
+    pub duckdb_slice_vector:
+        ::std::option::Option<unsafe extern "C" fn(vector: duckdb_vector, sel: duckdb_selection_vector, len: idx_t)>,
     pub duckdb_vector_reference_value:
         ::std::option::Option<unsafe extern "C" fn(vector: duckdb_vector, value: duckdb_value)>,
     pub duckdb_vector_reference_vector:
         ::std::option::Option<unsafe extern "C" fn(to_vector: duckdb_vector, from_vector: duckdb_vector)>,
     pub duckdb_create_selection_vector:
         ::std::option::Option<unsafe extern "C" fn(size: idx_t) -> duckdb_selection_vector>,
-    pub duckdb_destroy_selection_vector: ::std::option::Option<unsafe extern "C" fn(vector: duckdb_selection_vector)>,
+    pub duckdb_destroy_selection_vector: ::std::option::Option<unsafe extern "C" fn(sel: duckdb_selection_vector)>,
     pub duckdb_selection_vector_get_data_ptr:
-        ::std::option::Option<unsafe extern "C" fn(vector: duckdb_selection_vector) -> *mut sel_t>,
+        ::std::option::Option<unsafe extern "C" fn(sel: duckdb_selection_vector) -> *mut sel_t>,
 }
 static __DUCKDB_OPEN: ::std::sync::atomic::AtomicPtr<()> = ::std::sync::atomic::AtomicPtr::new(
     ::std::ptr::null_mut(),
@@ -8877,6 +8900,106 @@ pub unsafe fn duckdb_append_default_to_chunk(
     (fun)(appender, chunk, col, row)
 }
 
+static __DUCKDB_APPENDER_ERROR_DATA: ::std::sync::atomic::AtomicPtr<()> = ::std::sync::atomic::AtomicPtr::new(
+    ::std::ptr::null_mut(),
+);
+pub unsafe fn duckdb_appender_error_data(
+    appender: duckdb_appender,
+) -> duckdb_error_data {
+    let function_ptr = __DUCKDB_APPENDER_ERROR_DATA
+        .load(::std::sync::atomic::Ordering::Acquire);
+    assert!(
+        ! function_ptr.is_null(), "DuckDB API not initialized or DuckDB feature omitted"
+    );
+    let fun: unsafe extern "C" fn(appender: duckdb_appender) -> duckdb_error_data = ::std::mem::transmute(
+        function_ptr,
+    );
+    (fun)(appender)
+}
+
+static __DUCKDB_CREATE_ERROR_DATA: ::std::sync::atomic::AtomicPtr<()> = ::std::sync::atomic::AtomicPtr::new(
+    ::std::ptr::null_mut(),
+);
+pub unsafe fn duckdb_create_error_data(
+    type_: duckdb_error_type,
+    message: *const ::std::os::raw::c_char,
+) -> duckdb_error_data {
+    let function_ptr = __DUCKDB_CREATE_ERROR_DATA
+        .load(::std::sync::atomic::Ordering::Acquire);
+    assert!(
+        ! function_ptr.is_null(), "DuckDB API not initialized or DuckDB feature omitted"
+    );
+    let fun: unsafe extern "C" fn(
+        type_: duckdb_error_type,
+        message: *const ::std::os::raw::c_char,
+    ) -> duckdb_error_data = ::std::mem::transmute(function_ptr);
+    (fun)(type_, message)
+}
+
+static __DUCKDB_DESTROY_ERROR_DATA: ::std::sync::atomic::AtomicPtr<()> = ::std::sync::atomic::AtomicPtr::new(
+    ::std::ptr::null_mut(),
+);
+pub unsafe fn duckdb_destroy_error_data(error_data: *mut duckdb_error_data) {
+    let function_ptr = __DUCKDB_DESTROY_ERROR_DATA
+        .load(::std::sync::atomic::Ordering::Acquire);
+    assert!(
+        ! function_ptr.is_null(), "DuckDB API not initialized or DuckDB feature omitted"
+    );
+    let fun: unsafe extern "C" fn(error_data: *mut duckdb_error_data) = ::std::mem::transmute(
+        function_ptr,
+    );
+    (fun)(error_data)
+}
+
+static __DUCKDB_ERROR_DATA_ERROR_TYPE: ::std::sync::atomic::AtomicPtr<()> = ::std::sync::atomic::AtomicPtr::new(
+    ::std::ptr::null_mut(),
+);
+pub unsafe fn duckdb_error_data_error_type(
+    error_data: duckdb_error_data,
+) -> duckdb_error_type {
+    let function_ptr = __DUCKDB_ERROR_DATA_ERROR_TYPE
+        .load(::std::sync::atomic::Ordering::Acquire);
+    assert!(
+        ! function_ptr.is_null(), "DuckDB API not initialized or DuckDB feature omitted"
+    );
+    let fun: unsafe extern "C" fn(error_data: duckdb_error_data) -> duckdb_error_type = ::std::mem::transmute(
+        function_ptr,
+    );
+    (fun)(error_data)
+}
+
+static __DUCKDB_ERROR_DATA_MESSAGE: ::std::sync::atomic::AtomicPtr<()> = ::std::sync::atomic::AtomicPtr::new(
+    ::std::ptr::null_mut(),
+);
+pub unsafe fn duckdb_error_data_message(
+    error_data: duckdb_error_data,
+) -> *const ::std::os::raw::c_char {
+    let function_ptr = __DUCKDB_ERROR_DATA_MESSAGE
+        .load(::std::sync::atomic::Ordering::Acquire);
+    assert!(
+        ! function_ptr.is_null(), "DuckDB API not initialized or DuckDB feature omitted"
+    );
+    let fun: unsafe extern "C" fn(
+        error_data: duckdb_error_data,
+    ) -> *const ::std::os::raw::c_char = ::std::mem::transmute(function_ptr);
+    (fun)(error_data)
+}
+
+static __DUCKDB_ERROR_DATA_HAS_ERROR: ::std::sync::atomic::AtomicPtr<()> = ::std::sync::atomic::AtomicPtr::new(
+    ::std::ptr::null_mut(),
+);
+pub unsafe fn duckdb_error_data_has_error(error_data: duckdb_error_data) -> bool {
+    let function_ptr = __DUCKDB_ERROR_DATA_HAS_ERROR
+        .load(::std::sync::atomic::Ordering::Acquire);
+    assert!(
+        ! function_ptr.is_null(), "DuckDB API not initialized or DuckDB feature omitted"
+    );
+    let fun: unsafe extern "C" fn(error_data: duckdb_error_data) -> bool = ::std::mem::transmute(
+        function_ptr,
+    );
+    (fun)(error_data)
+}
+
 static __DUCKDB_CLIENT_CONTEXT_GET_CONNECTION_ID: ::std::sync::atomic::AtomicPtr<()> = ::std::sync::atomic::AtomicPtr::new(
     ::std::ptr::null_mut(),
 );
@@ -9044,6 +9167,23 @@ pub unsafe fn duckdb_scalar_function_get_bind_data(
     (fun)(info)
 }
 
+static __DUCKDB_SCALAR_FUNCTION_BIND_GET_EXTRA_INFO: ::std::sync::atomic::AtomicPtr<
+    (),
+> = ::std::sync::atomic::AtomicPtr::new(::std::ptr::null_mut());
+pub unsafe fn duckdb_scalar_function_bind_get_extra_info(
+    info: duckdb_bind_info,
+) -> *mut ::std::os::raw::c_void {
+    let function_ptr = __DUCKDB_SCALAR_FUNCTION_BIND_GET_EXTRA_INFO
+        .load(::std::sync::atomic::Ordering::Acquire);
+    assert!(
+        ! function_ptr.is_null(), "DuckDB API not initialized or DuckDB feature omitted"
+    );
+    let fun: unsafe extern "C" fn(
+        info: duckdb_bind_info,
+    ) -> *mut ::std::os::raw::c_void = ::std::mem::transmute(function_ptr);
+    (fun)(info)
+}
+
 static __DUCKDB_VALUE_TO_STRING: ::std::sync::atomic::AtomicPtr<()> = ::std::sync::atomic::AtomicPtr::new(
     ::std::ptr::null_mut(),
 );
@@ -9144,7 +9284,7 @@ static __DUCKDB_SLICE_VECTOR: ::std::sync::atomic::AtomicPtr<()> = ::std::sync::
 );
 pub unsafe fn duckdb_slice_vector(
     vector: duckdb_vector,
-    selection: duckdb_selection_vector,
+    sel: duckdb_selection_vector,
     len: idx_t,
 ) {
     let function_ptr = __DUCKDB_SLICE_VECTOR
@@ -9154,10 +9294,10 @@ pub unsafe fn duckdb_slice_vector(
     );
     let fun: unsafe extern "C" fn(
         vector: duckdb_vector,
-        selection: duckdb_selection_vector,
+        sel: duckdb_selection_vector,
         len: idx_t,
     ) = ::std::mem::transmute(function_ptr);
-    (fun)(vector, selection, len)
+    (fun)(vector, sel, len)
 }
 
 static __DUCKDB_VECTOR_REFERENCE_VALUE: ::std::sync::atomic::AtomicPtr<()> = ::std::sync::atomic::AtomicPtr::new(
@@ -9212,33 +9352,33 @@ pub unsafe fn duckdb_create_selection_vector(size: idx_t) -> duckdb_selection_ve
 static __DUCKDB_DESTROY_SELECTION_VECTOR: ::std::sync::atomic::AtomicPtr<()> = ::std::sync::atomic::AtomicPtr::new(
     ::std::ptr::null_mut(),
 );
-pub unsafe fn duckdb_destroy_selection_vector(vector: duckdb_selection_vector) {
+pub unsafe fn duckdb_destroy_selection_vector(sel: duckdb_selection_vector) {
     let function_ptr = __DUCKDB_DESTROY_SELECTION_VECTOR
         .load(::std::sync::atomic::Ordering::Acquire);
     assert!(
         ! function_ptr.is_null(), "DuckDB API not initialized or DuckDB feature omitted"
     );
-    let fun: unsafe extern "C" fn(vector: duckdb_selection_vector) = ::std::mem::transmute(
+    let fun: unsafe extern "C" fn(sel: duckdb_selection_vector) = ::std::mem::transmute(
         function_ptr,
     );
-    (fun)(vector)
+    (fun)(sel)
 }
 
 static __DUCKDB_SELECTION_VECTOR_GET_DATA_PTR: ::std::sync::atomic::AtomicPtr<()> = ::std::sync::atomic::AtomicPtr::new(
     ::std::ptr::null_mut(),
 );
 pub unsafe fn duckdb_selection_vector_get_data_ptr(
-    vector: duckdb_selection_vector,
+    sel: duckdb_selection_vector,
 ) -> *mut sel_t {
     let function_ptr = __DUCKDB_SELECTION_VECTOR_GET_DATA_PTR
         .load(::std::sync::atomic::Ordering::Acquire);
     assert!(
         ! function_ptr.is_null(), "DuckDB API not initialized or DuckDB feature omitted"
     );
-    let fun: unsafe extern "C" fn(vector: duckdb_selection_vector) -> *mut sel_t = ::std::mem::transmute(
+    let fun: unsafe extern "C" fn(sel: duckdb_selection_vector) -> *mut sel_t = ::std::mem::transmute(
         function_ptr,
     );
-    (fun)(vector)
+    (fun)(sel)
 }
 
 /// Like DUCKDB_EXTENSION_API_INIT macro
@@ -10885,6 +11025,30 @@ pub unsafe fn duckdb_rs_extension_api_init(
         __DUCKDB_APPEND_DEFAULT_TO_CHUNK
             .store(fun as usize as *mut (), ::std::sync::atomic::Ordering::Release);
     }
+    if let Some(fun) = (*p_api).duckdb_appender_error_data {
+        __DUCKDB_APPENDER_ERROR_DATA
+            .store(fun as usize as *mut (), ::std::sync::atomic::Ordering::Release);
+    }
+    if let Some(fun) = (*p_api).duckdb_create_error_data {
+        __DUCKDB_CREATE_ERROR_DATA
+            .store(fun as usize as *mut (), ::std::sync::atomic::Ordering::Release);
+    }
+    if let Some(fun) = (*p_api).duckdb_destroy_error_data {
+        __DUCKDB_DESTROY_ERROR_DATA
+            .store(fun as usize as *mut (), ::std::sync::atomic::Ordering::Release);
+    }
+    if let Some(fun) = (*p_api).duckdb_error_data_error_type {
+        __DUCKDB_ERROR_DATA_ERROR_TYPE
+            .store(fun as usize as *mut (), ::std::sync::atomic::Ordering::Release);
+    }
+    if let Some(fun) = (*p_api).duckdb_error_data_message {
+        __DUCKDB_ERROR_DATA_MESSAGE
+            .store(fun as usize as *mut (), ::std::sync::atomic::Ordering::Release);
+    }
+    if let Some(fun) = (*p_api).duckdb_error_data_has_error {
+        __DUCKDB_ERROR_DATA_HAS_ERROR
+            .store(fun as usize as *mut (), ::std::sync::atomic::Ordering::Release);
+    }
     if let Some(fun) = (*p_api).duckdb_client_context_get_connection_id {
         __DUCKDB_CLIENT_CONTEXT_GET_CONNECTION_ID
             .store(fun as usize as *mut (), ::std::sync::atomic::Ordering::Release);
@@ -10919,6 +11083,10 @@ pub unsafe fn duckdb_rs_extension_api_init(
     }
     if let Some(fun) = (*p_api).duckdb_scalar_function_get_bind_data {
         __DUCKDB_SCALAR_FUNCTION_GET_BIND_DATA
+            .store(fun as usize as *mut (), ::std::sync::atomic::Ordering::Release);
+    }
+    if let Some(fun) = (*p_api).duckdb_scalar_function_bind_get_extra_info {
+        __DUCKDB_SCALAR_FUNCTION_BIND_GET_EXTRA_INFO
             .store(fun as usize as *mut (), ::std::sync::atomic::Ordering::Release);
     }
     if let Some(fun) = (*p_api).duckdb_value_to_string {
