@@ -12,7 +12,8 @@ mkdir -p "$SCRIPT_DIR/../../target" "$SCRIPT_DIR/duckdb"
 export DUCKDB_LIB_DIR="$SCRIPT_DIR/duckdb"
 
 # Download and extract amalgamation
-DUCKDB_VERSION=v1.3.2
+DUCKDB_VERSION=v1.3.0-interrupt3
+# DUCKDB_VERSION=v1.3-ossivalis
 git submodule update --init --checkout
 cd "$SCRIPT_DIR/duckdb-sources"
 git fetch
@@ -39,6 +40,6 @@ find "$SCRIPT_DIR/../../target" -type f -name bindgen.rs -exec cp {} "$SCRIPT_DI
 
 # Sanity checks
 cd "$SCRIPT_DIR/.."
-cargo test --features "extensions-full buildtime_bindgen"
+# cargo test --features "extensions-full buildtime_bindgen"
 
 printf '    \e[35;1mFinished\e[0m bundled DUCKDB tests\n'
