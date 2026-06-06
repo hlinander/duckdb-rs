@@ -1,4 +1,4 @@
-use std::{cell::OnceCell, collections::HashMap, ffi::CStr, ops::Deref, ptr, rc::Rc, sync::Arc};
+use std::{cell::OnceCell, collections::HashMap, ffi::CStr, ops::Deref, os::raw::c_char, ptr, rc::Rc, sync::Arc};
 
 use arrow::{
     array::StructArray,
@@ -239,29 +239,50 @@ impl RawStatement {
         self.schema.clone().unwrap()
     }
 
-    /// Returns the Arrow schema of the prepared statement's result without
-    /// executing it. Uses `duckdb_prepared_arrow_schema`, which works with the
-    /// streaming Arrow interface in DuckDB 1.5+ (the legacy
-    /// `duckdb_execute_prepared_arrow` path no longer populates a result).
-    pub fn schema_from_prepared(&self) -> Result<SchemaRef> {
-        unsafe {
-            let mut c_schema = Rc::into_raw(Rc::new(FFI_ArrowSchema::empty()));
-            let rc = ffi::duckdb_prepared_arrow_schema(
-                self.ptr,
-                &mut c_schema as *mut _ as *mut ffi::duckdb_arrow_schema,
-            );
-            if rc != ffi::DuckDBSuccess {
-                let _ = Rc::from_raw(c_schema);
-                return Err(Error::DuckDBFailure(
-                    ffi::Error::new(rc),
-                    Some("failed to get arrow schema from prepared statement".to_string()),
-                ));
-            }
-            let schema = Schema::try_from(&*c_schema)
-                .map_err(|e| Error::ArrowTypeToDuckdbType(e.to_string(), DataType::Null))?;
-            let _ = Rc::from_raw(c_schema);
-            Ok(Arc::new(schema))
+    /// Build the Arrow schema of a (streaming) `duckdb_result`, matching the
+    /// arrays produced by `duckdb_result_arrow_array`. DuckDB 1.5 removed the
+    /// legacy execute-then-arrow-schema path, so the schema must be derived
+    /// from the result's logical types and Arrow options.
+    unsafe fn schema_from_result(result: &mut ffi::duckdb_result) -> Result<SchemaRef> {
+        let col_count = ffi::duckdb_column_count(result) as usize;
+        let mut arrow_options = ffi::duckdb_result_get_arrow_options(result);
+        let mut types: Vec<ffi::duckdb_logical_type> = (0..col_count)
+            .map(|i| ffi::duckdb_column_logical_type(result, i as u64))
+            .collect();
+        // Names are owned by the result and valid for this call.
+        let names: Vec<*const c_char> = (0..col_count)
+            .map(|i| ffi::duckdb_column_name(result, i as u64))
+            .collect();
+
+        let mut c_schema = FFI_ArrowSchema::empty();
+        let err = ffi::duckdb_to_arrow_schema(
+            arrow_options,
+            types.as_mut_ptr(),
+            names.as_ptr() as *mut *const c_char,
+            col_count as u64,
+            &mut c_schema as *mut _ as *mut ffi::ArrowSchema,
+        );
+
+        for t in &mut types {
+            ffi::duckdb_destroy_logical_type(t);
         }
+        ffi::duckdb_destroy_arrow_options(&mut arrow_options);
+
+        if !err.is_null() {
+            let mut err = err;
+            let m = ffi::duckdb_error_data_message(err);
+            let msg = if m.is_null() {
+                None
+            } else {
+                Some(CStr::from_ptr(m).to_string_lossy().to_string())
+            };
+            ffi::duckdb_destroy_error_data(&mut err);
+            return Err(Error::DuckDBFailure(ffi::Error::new(ffi::DuckDBError), msg));
+        }
+
+        let schema = Schema::try_from(&c_schema)
+            .map_err(|e| Error::ArrowTypeToDuckdbType(e.to_string(), DataType::Null))?;
+        Ok(Arc::new(schema))
     }
 
     #[inline]
@@ -363,6 +384,11 @@ impl RawStatement {
             // Check if the result is truly streaming or materialized
             // Some statements (like CALL) return materialized results even when streaming is requested
             self.is_streaming = ffi::duckdb_result_is_streaming(out);
+
+            // Derive the Arrow schema from the streaming result so it matches the
+            // arrays produced by duckdb_result_arrow_array (DuckDB 1.5 removed the
+            // legacy execute-then-arrow-schema path).
+            self.schema = Some(Self::schema_from_result(&mut out)?);
             self.duckdb_result = Some(out);
 
             Ok(())

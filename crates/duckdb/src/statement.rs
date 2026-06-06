@@ -560,12 +560,15 @@ impl Statement<'_> {
         self.stmt.schema()
     }
 
-    /// Returns the Arrow schema of the statement's result **without executing**
-    /// it. Works with the streaming Arrow interface in DuckDB 1.5+, where the
-    /// legacy execute-then-schema path is unavailable.
+    /// Returns the Arrow schema of the statement's result. Executes the query
+    /// in streaming mode (without fetching any chunks) to derive the schema,
+    /// then leaves the statement ready to stream. Works with the streaming
+    /// Arrow interface in DuckDB 1.5+, where the legacy execute-then-schema
+    /// path is unavailable.
     #[inline]
-    pub fn schema_from_prepared(&self) -> Result<SchemaRef> {
-        self.stmt.schema_from_prepared()
+    pub fn schema_from_prepared(&mut self) -> Result<SchemaRef> {
+        self.stmt.execute_streaming()?;
+        Ok(self.stmt.schema())
     }
 
     // generic because many of these branches can constant fold away.
