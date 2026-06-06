@@ -239,6 +239,31 @@ impl RawStatement {
         self.schema.clone().unwrap()
     }
 
+    /// Returns the Arrow schema of the prepared statement's result without
+    /// executing it. Uses `duckdb_prepared_arrow_schema`, which works with the
+    /// streaming Arrow interface in DuckDB 1.5+ (the legacy
+    /// `duckdb_execute_prepared_arrow` path no longer populates a result).
+    pub fn schema_from_prepared(&self) -> Result<SchemaRef> {
+        unsafe {
+            let mut c_schema = Rc::into_raw(Rc::new(FFI_ArrowSchema::empty()));
+            let rc = ffi::duckdb_prepared_arrow_schema(
+                self.ptr,
+                &mut c_schema as *mut _ as *mut ffi::duckdb_arrow_schema,
+            );
+            if rc != ffi::DuckDBSuccess {
+                let _ = Rc::from_raw(c_schema);
+                return Err(Error::DuckDBFailure(
+                    ffi::Error::new(rc),
+                    Some("failed to get arrow schema from prepared statement".to_string()),
+                ));
+            }
+            let schema = Schema::try_from(&*c_schema)
+                .map_err(|e| Error::ArrowTypeToDuckdbType(e.to_string(), DataType::Null))?;
+            let _ = Rc::from_raw(c_schema);
+            Ok(Arc::new(schema))
+        }
+    }
+
     #[inline]
     pub fn column_name(&self, idx: usize) -> Option<&String> {
         if idx >= self.column_count() {

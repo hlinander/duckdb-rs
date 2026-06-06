@@ -560,6 +560,14 @@ impl Statement<'_> {
         self.stmt.schema()
     }
 
+    /// Returns the Arrow schema of the statement's result **without executing**
+    /// it. Works with the streaming Arrow interface in DuckDB 1.5+, where the
+    /// legacy execute-then-schema path is unavailable.
+    #[inline]
+    pub fn schema_from_prepared(&self) -> Result<SchemaRef> {
+        self.stmt.schema_from_prepared()
+    }
+
     // generic because many of these branches can constant fold away.
     fn bind_parameter<P: ?Sized + ToSql>(&self, param: &P, col: usize) -> Result<()> {
         let value = param.to_sql()?;
