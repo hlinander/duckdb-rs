@@ -93,6 +93,11 @@ impl RawStatement {
 
     #[inline]
     pub fn step(&self) -> Option<StructArray> {
+        // If executed via the streaming interface (DuckDB 1.5+ path used by
+        // query_arrow), fetch the next chunk through the streaming result.
+        if self.duckdb_result.is_some() {
+            return self.streaming_step(self.schema.clone()?);
+        }
         let out = self.result?;
         unsafe {
             let mut arrays = FFI_ArrowArray::empty();

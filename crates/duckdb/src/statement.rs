@@ -115,7 +115,12 @@ impl Statement<'_> {
     /// Will return `Err` if binding parameters fails.
     #[inline]
     pub fn query_arrow<P: Params>(&mut self, params: P) -> Result<Arrow<'_>> {
-        self.execute(params)?;
+        // DuckDB 1.5 removed the legacy duckdb_execute_prepared_arrow path, so
+        // run via the streaming Arrow interface. This populates the result
+        // schema; Arrow::step() detects the streaming result and fetches chunks
+        // through it, so existing query_arrow callers keep working unchanged.
+        params.__bind_in(self)?;
+        self.stmt.execute_streaming()?;
         Ok(Arrow::new(self))
     }
 
