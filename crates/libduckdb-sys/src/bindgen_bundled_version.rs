@@ -2688,6 +2688,10 @@ unsafe extern "C" {
     pub fn duckdb_profiling_info_get_child(info: duckdb_profiling_info, index: idx_t) -> duckdb_profiling_info;
 }
 unsafe extern "C" {
+    #[doc = "Returns the accumulated CPU time (in seconds) across all operators in the current query profile.\nAcquires the profiler lock for thread safety, making it suitable for mid-flight sampling.\nReturns 0.0 if profiling is not enabled or no profiling data is available.\n\nRequires that profiling is enabled on the connection:\nSET enable_profiling = 'json';\nSET custom_profiling_settings = '{\"OPERATOR_CPU_TIME\": \"true\", \"CPU_TIME_ACTUAL\": \"true\"}';\n\n @param connection A connection object.\n @return The accumulated CPU time in seconds."]
+    pub fn duckdb_get_accumulated_cpu_time(connection: duckdb_connection) -> f64;
+}
+unsafe extern "C" {
     #[doc = "Creates an appender object.\n\nNote that the object must be destroyed with `duckdb_appender_destroy`.\n\n @param connection The connection context to create the appender in.\n @param schema The schema of the table to append to, or `nullptr` for the default schema.\n @param table The table name to append to.\n @param out_appender The resulting appender object.\n @return `DuckDBSuccess` on success or `DuckDBError` on failure."]
     pub fn duckdb_appender_create(
         connection: duckdb_connection,
