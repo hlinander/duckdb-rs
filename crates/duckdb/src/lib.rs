@@ -78,6 +78,7 @@ pub use crate::{
     column::Column,
     config::{AccessMode, Config, DefaultNullOrder, DefaultOrder},
     error::Error,
+    extracted_statements::ExtractedStatements,
     ffi::ErrorCode,
     inner_connection::InterruptHandle,
     params::{Params, ParamsFromIter, params_from_iter},
@@ -112,6 +113,7 @@ mod callback;
 mod column;
 mod config;
 mod executed_result;
+mod extracted_statements;
 mod inner_connection;
 mod params;
 
@@ -534,6 +536,45 @@ impl Connection {
     #[inline]
     pub fn prepare(&self, sql: &str) -> Result<Statement<'_>> {
         self.db.borrow_mut().prepare(self, sql)
+    }
+
+    /// Extract the statements of a block of SQL without running any of them.
+    ///
+    /// [`Connection::prepare`] runs every statement of a block but the last
+    /// and prepares the last. The returned [`ExtractedStatements`] gives the
+    /// caller that loop: it prepares or runs each statement by index, so the
+    /// caller decides what happens between two statements.
+    ///
+    /// The whole block is parsed here, so a syntax error in any statement
+    /// fails before one of them runs. A block that holds no statement returns
+    /// an empty set.
+    ///
+    /// ## Example
+    ///
+    /// ```rust,no_run
+    /// # use duckdb::{Connection, Result};
+    /// fn run_block(conn: &Connection, sql: &str) -> Result<()> {
+    ///     let mut statements = conn.extract(sql)?;
+    ///     let Some(last) = statements.len().checked_sub(1) else {
+    ///         return Ok(());
+    ///     };
+    ///     for index in 0..last {
+    ///         statements.execute_and_discard(index)?;
+    ///     }
+    ///     let mut stmt = statements.prepare(last)?;
+    ///     let mut rows = stmt.query([])?;
+    ///     while let Some(_row) = rows.next()? {}
+    ///     Ok(())
+    /// }
+    /// ```
+    ///
+    /// # Failure
+    ///
+    /// Will return `Err` if `sql` cannot be converted to a C-compatible string
+    /// or if the block does not parse.
+    #[inline]
+    pub fn extract(&self, sql: &str) -> Result<ExtractedStatements<'_>> {
+        self.db.borrow_mut().extract(self, sql)
     }
 
     /// Create an Appender for fast import data

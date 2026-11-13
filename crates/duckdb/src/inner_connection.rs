@@ -9,9 +9,10 @@ use std::{
 use super::{Appender, Config, Connection, Result, ffi};
 use crate::{
     error::{
-        Error, result_from_duckdb_appender, result_from_duckdb_extract, result_from_duckdb_prepare,
-        result_from_duckdb_result,
+        Error, error_from_duckdb_extract, result_from_duckdb_appender, result_from_duckdb_extract,
+        result_from_duckdb_prepare, result_from_duckdb_result,
     },
+    extracted_statements::ExtractedStatements,
     raw_statement::RawStatement,
     statement::Statement,
 };
@@ -157,7 +158,7 @@ impl InnerConnection {
         Ok(Statement::new(conn, unsafe { RawStatement::new(final_stmt) }))
     }
 
-    fn prepare_extracted_statement(
+    pub(crate) fn prepare_extracted_statement(
         &self,
         extracted: ffi::duckdb_extracted_statements,
         index: ffi::idx_t,
@@ -168,36 +169,44 @@ impl InnerConnection {
         Ok(stmt)
     }
 
-    fn execute_extracted_statement(
+    /// Runs the extracted statement at `index` and discards its result. No
+    /// result column is inspected, because nothing decodes the result.
+    pub(crate) fn execute_extracted_statement(
         &self,
         extracted: ffi::duckdb_extracted_statements,
         index: ffi::idx_t,
     ) -> Result<()> {
         let mut stmt = self.prepare_extracted_statement(extracted, index)?;
 
-        let mut result = unsafe { mem::zeroed() };
-        let rc = unsafe { ffi::duckdb_execute_prepared(stmt, &mut result) };
-
-        let error = if rc != ffi::DuckDBSuccess {
-            unsafe {
-                let c_err = ffi::duckdb_result_error(&mut result as *mut _);
-                let msg = if c_err.is_null() {
-                    None
-                } else {
-                    Some(CStr::from_ptr(c_err).to_string_lossy().to_string())
-                };
-                Some(Error::DuckDBFailure(ffi::Error::new(rc), msg))
-            }
-        } else {
-            None
-        };
-
         unsafe {
+            let mut result = mem::zeroed();
+            let rc = ffi::duckdb_execute_prepared(stmt, &mut result);
+            // Destroys the result when the execution failed.
+            let outcome = result_from_duckdb_result(rc, &mut result);
             ffi::duckdb_destroy_prepare(&mut stmt);
-            ffi::duckdb_destroy_result(&mut result);
+            if outcome.is_ok() {
+                ffi::duckdb_destroy_result(&mut result);
+            }
+            outcome
+        }
+    }
+
+    /// Extracts the statements of `sql` without running any of them.
+    pub fn extract<'a>(&mut self, conn: &'a Connection, sql: &str) -> Result<ExtractedStatements<'a>> {
+        let c_str = CString::new(sql)?;
+
+        let mut extracted = ptr::null_mut();
+        let num_stmts =
+            unsafe { ffi::duckdb_extract_statements(self.con, c_str.as_ptr() as *const c_char, &mut extracted) };
+
+        // A block that holds no statement extracts to zero statements and no error.
+        let failed = extracted.is_null()
+            || (num_stmts == 0 && unsafe { !ffi::duckdb_extract_statements_error(extracted).is_null() });
+        if failed {
+            return Err(unsafe { error_from_duckdb_extract(extracted) });
         }
 
-        error.map_or(Ok(()), Err)
+        Ok(unsafe { ExtractedStatements::new(conn, extracted, num_stmts as usize) })
     }
 
     pub fn appender<'a>(
