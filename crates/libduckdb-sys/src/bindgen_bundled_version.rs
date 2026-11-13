@@ -293,6 +293,24 @@ pub struct duckdb_query_progress_type {
     pub rows_processed: u64,
     pub total_rows_to_process: u64,
 }
+#[doc = "! Cumulative CPU and IO totals of a connection or of a database. Nothing resets them: a reader takes the difference\n! between two reads."]
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct duckdb_usage_totals {
+    pub cpu_ns: u64,
+    pub bytes_read: u64,
+    pub bytes_written: u64,
+}
+#[doc = "! The totals of a connection and of its database, and the memory marks of the database's buffer pool.\n! `memory_bytes` is the floor of the pool's level, `memory_peak_bytes` is the largest floor since the last\n! `duckdb_begin_measured`, and `memory_byte_ms` is the integral of the floor over time in byte-milliseconds, which\n! a reader subtracts with wrapping arithmetic."]
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct duckdb_resource_totals {
+    pub connection: duckdb_usage_totals,
+    pub database: duckdb_usage_totals,
+    pub memory_bytes: u64,
+    pub memory_peak_bytes: u64,
+    pub memory_byte_ms: u64,
+}
 #[doc = "! The internal representation of a VARCHAR (string_t). If the VARCHAR does not\n! exceed 12 characters, then we inline it. Otherwise, we inline a four-byte prefix for faster\n! string comparisons and store a pointer to the remaining characters. This is a non-\n! owning structure, i.e., it does not have to be freed."]
 #[repr(C)]
 #[derive(Copy, Clone)]
@@ -1292,6 +1310,10 @@ unsafe extern "C" {
     pub fn duckdb_prepare_error(prepared_statement: duckdb_prepared_statement) -> *const ::std::os::raw::c_char;
 }
 unsafe extern "C" {
+    #[doc = "Returns the type of the error whose message `duckdb_prepare_error` returns for the given prepared statement.\n\n @param prepared_statement The prepared statement to obtain the error type from.\n @return The error type, or `DUCKDB_ERROR_INVALID` if the prepared statement holds no error or is `nullptr`."]
+    pub fn duckdb_prepare_error_type(prepared_statement: duckdb_prepared_statement) -> duckdb_error_type;
+}
+unsafe extern "C" {
     #[doc = "Returns the number of parameters that can be provided to the given prepared statement.\n\nReturns 0 if the query was not successfully prepared.\n\n @param prepared_statement The prepared statement to obtain the number of parameters for."]
     pub fn duckdb_nparams(prepared_statement: duckdb_prepared_statement) -> idx_t;
 }
@@ -1560,6 +1582,11 @@ unsafe extern "C" {
     pub fn duckdb_extract_statements_error(
         extracted_statements: duckdb_extracted_statements,
     ) -> *const ::std::os::raw::c_char;
+}
+unsafe extern "C" {
+    #[doc = "Returns the type of the error whose message `duckdb_extract_statements_error` returns for the extracted statements.\n\n @param extracted_statements The extracted statements to fetch the error type from.\n @return The error type, or `DUCKDB_ERROR_INVALID` if the extraction succeeded or the argument is `nullptr`."]
+    pub fn duckdb_extract_statements_error_type(extracted_statements: duckdb_extracted_statements)
+    -> duckdb_error_type;
 }
 unsafe extern "C" {
     #[doc = "De-allocates all memory allocated for the extracted statements.\n @param extracted_statements The extracted statements to destroy."]
@@ -2688,8 +2715,21 @@ unsafe extern "C" {
     pub fn duckdb_profiling_info_get_child(info: duckdb_profiling_info, index: idx_t) -> duckdb_profiling_info;
 }
 unsafe extern "C" {
-    #[doc = "Returns the accumulated CPU time (in seconds) across all operators in the current query profile.\nAcquires the profiler lock for thread safety, making it suitable for mid-flight sampling.\nReturns 0.0 if profiling is not enabled or no profiling data is available.\n\nRequires that profiling is enabled on the connection:\nSET enable_profiling = 'json';\nSET custom_profiling_settings = '{\"OPERATOR_CPU_TIME\": \"true\", \"CPU_TIME_ACTUAL\": \"true\"}';\n\n @param connection A connection object.\n @return The accumulated CPU time in seconds."]
-    pub fn duckdb_get_accumulated_cpu_time(connection: duckdb_connection) -> f64;
+    #[doc = "Reads the cumulative resource totals of the connection and of its database, and the memory marks of that database's\nbuffer pool. Takes no connection lock, so a caller on another thread never waits for a running statement.\nEvery field of `out` is written on every return path.\n\n @param connection A connection object.\n @param out The resource totals.\n @return `DuckDBSuccess` on success or `DuckDBError` on failure."]
+    pub fn duckdb_resource_totals_read(connection: duckdb_connection, out: *mut duckdb_resource_totals)
+    -> duckdb_state;
+}
+unsafe extern "C" {
+    #[doc = "Opens a measured interval on the connection: resets the connection's profiling tree, sets the peak memory mark of\nits database to the current floor, and then reads the resource totals as `duckdb_resource_totals_read` does.\nThe figures of the interval are the differences between the read of `duckdb_end_measured` and this read.\n\n @param connection A connection object.\n @param out_open The resource totals at the opening of the interval.\n @return `DuckDBSuccess` on success or `DuckDBError` on failure."]
+    pub fn duckdb_begin_measured(connection: duckdb_connection, out_open: *mut duckdb_resource_totals) -> duckdb_state;
+}
+unsafe extern "C" {
+    #[doc = "Closes a measured interval on the connection: ends an execution that is still open, reporting failure to its\ntransaction without invalidating it, and then reads the resource totals as `duckdb_resource_totals_read` does.\nWaits for the outstanding tasks of the execution it ends.\n\n @param connection A connection object.\n @param out_close The resource totals at the closing of the interval.\n @param out_abandoned Set to whether an execution was still open and has been ended. Can be NULL.\n @return `DuckDBSuccess` on success or `DuckDBError` on failure."]
+    pub fn duckdb_end_measured(
+        connection: duckdb_connection,
+        out_close: *mut duckdb_resource_totals,
+        out_abandoned: *mut bool,
+    ) -> duckdb_state;
 }
 unsafe extern "C" {
     #[doc = "Creates an appender object.\n\nNote that the object must be destroyed with `duckdb_appender_destroy`.\n\n @param connection The connection context to create the appender in.\n @param schema The schema of the table to append to, or `nullptr` for the default schema.\n @param table The table name to append to.\n @param out_appender The resulting appender object.\n @return `DuckDBSuccess` on success or `DuckDBError` on failure."]

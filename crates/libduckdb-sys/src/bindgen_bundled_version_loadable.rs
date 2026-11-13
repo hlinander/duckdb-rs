@@ -293,6 +293,24 @@ pub struct duckdb_query_progress_type {
     pub rows_processed: u64,
     pub total_rows_to_process: u64,
 }
+#[doc = "! Cumulative CPU and IO totals of a connection or of a database. Nothing resets them: a reader takes the difference\n! between two reads."]
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct duckdb_usage_totals {
+    pub cpu_ns: u64,
+    pub bytes_read: u64,
+    pub bytes_written: u64,
+}
+#[doc = "! The totals of a connection and of its database, and the memory marks of the database's buffer pool.\n! `memory_bytes` is the floor of the pool's level, `memory_peak_bytes` is the largest floor since the last\n! `duckdb_begin_measured`, and `memory_byte_ms` is the integral of the floor over time in byte-milliseconds, which\n! a reader subtracts with wrapping arithmetic."]
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct duckdb_resource_totals {
+    pub connection: duckdb_usage_totals,
+    pub database: duckdb_usage_totals,
+    pub memory_bytes: u64,
+    pub memory_peak_bytes: u64,
+    pub memory_byte_ms: u64,
+}
 #[doc = "! The internal representation of a VARCHAR (string_t). If the VARCHAR does not\n! exceed 12 characters, then we inline it. Otherwise, we inline a four-byte prefix for faster\n! string comparisons and store a pointer to the remaining characters. This is a non-\n! owning structure, i.e., it does not have to be freed."]
 #[repr(C)]
 #[derive(Copy, Clone)]
