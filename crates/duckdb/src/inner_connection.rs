@@ -108,10 +108,13 @@ impl InnerConnection {
         if self.con.is_null() {
             return Ok(());
         }
+        // Clear the handle's pointer first. `clear` waits for a reader that holds the handle's
+        // mutex, and every later reader sees a null pointer, so no reader holds the native
+        // connection once it is disconnected.
+        self.interrupt.clear();
         unsafe {
             ffi::duckdb_disconnect(&mut self.con);
             self.con = ptr::null_mut();
-            self.interrupt.clear();
         }
         Ok(())
     }
@@ -312,5 +315,107 @@ impl InterruptHandle {
                 ffi::duckdb_interrupt(*db_handle);
             }
         }
+    }
+
+    /// Runs `f` with the native connection this handle was obtained from and
+    /// returns its result, or returns `None` without running `f` once the
+    /// connection is closed.
+    ///
+    /// `f` runs under the handle's mutex. Closing the connection takes that
+    /// mutex before it disconnects, so the pointer is live for the whole of
+    /// `f`. [`InterruptHandle::interrupt`] takes the same mutex and waits
+    /// while `f` runs.
+    ///
+    /// The pointer is valid outside `f` only for a caller that otherwise
+    /// prevents the connection from closing.
+    pub fn with_connection<R>(&self, f: impl FnOnce(ffi::duckdb_connection) -> R) -> Option<R> {
+        let db_handle = self.conn.lock().unwrap();
+
+        if db_handle.is_null() { None } else { Some(f(*db_handle)) }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::{Connection, Result, ffi};
+    use std::{
+        mem,
+        sync::{
+            Arc, Barrier,
+            atomic::{AtomicBool, Ordering},
+        },
+        thread,
+        time::Duration,
+    };
+
+    #[test]
+    fn with_connection_passes_the_native_connection() -> Result<()> {
+        let db = Connection::open_in_memory()?;
+        let handle = db.interrupt_handle();
+
+        let state = handle.with_connection(|con| unsafe {
+            assert!(!con.is_null());
+            let mut totals: ffi::duckdb_resource_totals = mem::zeroed();
+            ffi::duckdb_resource_totals_read(con, &mut totals)
+        });
+
+        assert_eq!(state, Some(ffi::DuckDBSuccess));
+        Ok(())
+    }
+
+    #[test]
+    fn with_connection_returns_none_after_close() -> Result<()> {
+        let db = Connection::open_in_memory()?;
+        let handle = db.interrupt_handle();
+        db.close().map_err(|(_, err)| err)?;
+
+        let mut ran = false;
+        assert_eq!(handle.with_connection(|_| ran = true), None);
+        assert!(!ran);
+        Ok(())
+    }
+
+    #[test]
+    fn with_connection_returns_none_after_drop() -> Result<()> {
+        let handle = Connection::open_in_memory()?.interrupt_handle();
+
+        assert!(handle.with_connection(|con| con).is_none());
+        Ok(())
+    }
+
+    #[test]
+    fn close_waits_for_a_reader() -> Result<()> {
+        let db = Connection::open_in_memory()?;
+        let handle = db.interrupt_handle();
+        let entered = Arc::new(Barrier::new(2));
+        let finished = Arc::new(AtomicBool::new(false));
+
+        let reader = {
+            let handle = handle.clone();
+            let entered = entered.clone();
+            let finished = finished.clone();
+            thread::spawn(move || {
+                handle.with_connection(|con| {
+                    entered.wait();
+                    thread::sleep(Duration::from_millis(200));
+                    let mut totals: ffi::duckdb_resource_totals = unsafe { mem::zeroed() };
+                    let state = unsafe { ffi::duckdb_resource_totals_read(con, &mut totals) };
+                    finished.store(true, Ordering::SeqCst);
+                    state
+                })
+            })
+        };
+
+        // The reader holds the mutex from here until it has made its engine call.
+        entered.wait();
+        db.close().map_err(|(_, err)| err)?;
+        assert!(
+            finished.load(Ordering::SeqCst),
+            "close returned while a reader held the connection"
+        );
+
+        assert_eq!(reader.join().unwrap(), Some(ffi::DuckDBSuccess));
+        assert!(handle.with_connection(|_| ()).is_none());
+        Ok(())
     }
 }
