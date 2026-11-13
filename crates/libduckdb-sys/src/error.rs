@@ -1,4 +1,4 @@
-use crate::duckdb_state;
+use crate::{duckdb_error_type, duckdb_error_type_DUCKDB_ERROR_INVALID, duckdb_state};
 use std::{error, fmt};
 
 /// Error Codes
@@ -59,13 +59,22 @@ pub enum ErrorCode {
 pub struct Error {
     pub code: ErrorCode,
     pub extended_code: duckdb_state,
+    /// The engine's type for the failure, or `DUCKDB_ERROR_INVALID` for a
+    /// failure whose source reports no type.
+    pub error_type: duckdb_error_type,
 }
 
 impl Error {
     pub fn new(result_code: duckdb_state) -> Self {
+        Self::with_error_type(result_code, duckdb_error_type_DUCKDB_ERROR_INVALID)
+    }
+
+    /// Builds an error that carries the engine's type for the failure.
+    pub fn with_error_type(result_code: duckdb_state, error_type: duckdb_error_type) -> Self {
         Self {
             code: ErrorCode::Unknown,
             extended_code: result_code,
+            error_type,
         }
     }
 }

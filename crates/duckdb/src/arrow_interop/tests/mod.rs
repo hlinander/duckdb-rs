@@ -787,7 +787,8 @@ fn test_arrow_error() {
         crate::error::Error::DuckDBFailure(
             crate::ffi::Error {
                 code: crate::ffi::ErrorCode::Unknown,
-                extended_code: 1
+                extended_code: 1,
+                error_type: crate::ffi::duckdb_error_type_DUCKDB_ERROR_INVALID_INPUT,
             },
             Some(
                 "Invalid Input Error: Data type \"Decimal256(76, 10)\" not yet supported by Arrow-to-DuckDB conversion"

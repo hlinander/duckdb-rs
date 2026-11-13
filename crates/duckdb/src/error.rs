@@ -267,6 +267,53 @@ fn duckdb_failure_from_error_type(error_type: ffi::duckdb_error_type, message: O
 }
 
 #[inline]
+fn duckdb_failure_with_error_type(
+    code: ffi::duckdb_state,
+    error_type: ffi::duckdb_error_type,
+    message: Option<String>,
+) -> Error {
+    Error::DuckDBFailure(ffi::Error::with_error_type(code, error_type), message)
+}
+
+/// Returns the engine's type for the failure a prepared statement holds.
+///
+/// # Safety
+///
+/// `prepare` must be a live prepared-statement handle.
+#[inline]
+unsafe fn prepare_error_type(prepare: ffi::duckdb_prepared_statement) -> ffi::duckdb_error_type {
+    // The loadable-extension API struct does not carry this function.
+    #[cfg(not(feature = "loadable-extension"))]
+    unsafe {
+        ffi::duckdb_prepare_error_type(prepare)
+    }
+    #[cfg(feature = "loadable-extension")]
+    {
+        let _ = prepare;
+        ffi::duckdb_error_type_DUCKDB_ERROR_INVALID
+    }
+}
+
+/// Returns the engine's type for the failure an extraction holds.
+///
+/// # Safety
+///
+/// `extracted` must be a live extracted-statements handle.
+#[inline]
+unsafe fn extract_statements_error_type(extracted: ffi::duckdb_extracted_statements) -> ffi::duckdb_error_type {
+    // The loadable-extension API struct does not carry this function.
+    #[cfg(not(feature = "loadable-extension"))]
+    unsafe {
+        ffi::duckdb_extract_statements_error_type(extracted)
+    }
+    #[cfg(feature = "loadable-extension")]
+    {
+        let _ = extracted;
+        ffi::duckdb_error_type_DUCKDB_ERROR_INVALID
+    }
+}
+
+#[inline]
 pub(crate) fn duckdb_failure_from_message(message: impl Into<String>) -> Error {
     duckdb_failure_from_state(ffi::DuckDBError, Some(message.into()))
 }
@@ -318,15 +365,14 @@ pub fn result_from_duckdb_prepare(code: ffi::duckdb_state, mut prepare: ffi::duc
         return Ok(());
     }
     unsafe {
-        let message = if prepare.is_null() {
-            Some("prepare is null".to_string())
-        } else {
-            let c_err = ffi::duckdb_prepare_error(prepare);
-            let message = Some(CStr::from_ptr(c_err).to_string_lossy().to_string());
-            ffi::duckdb_destroy_prepare(&mut prepare);
-            message
-        };
-        result_from_duckdb_state(code, message)
+        if prepare.is_null() {
+            return result_from_duckdb_state(code, Some("prepare is null".to_string()));
+        }
+        let c_err = ffi::duckdb_prepare_error(prepare);
+        let message = Some(CStr::from_ptr(c_err).to_string_lossy().to_string());
+        let error_type = prepare_error_type(prepare);
+        ffi::duckdb_destroy_prepare(&mut prepare);
+        Err(duckdb_failure_with_error_type(code, error_type, message))
     }
 }
 
@@ -341,8 +387,9 @@ pub fn result_from_duckdb_result(code: ffi::duckdb_state, result: *mut ffi::duck
             result_from_duckdb_state(code, Some("result is null".to_string()))
         } else {
             let message = result_error_message(result);
+            let error_type = ffi::duckdb_result_error_type(result);
             ffi::duckdb_destroy_result(result);
-            result_from_duckdb_state(code, message)
+            Err(duckdb_failure_with_error_type(code, error_type, message))
         }
     }
 }
@@ -400,25 +447,36 @@ pub(crate) unsafe fn result_from_duckdb_error_data(mut error_data: ffi::duckdb_e
 #[inline]
 pub fn result_from_duckdb_extract(
     num_statements: ffi::idx_t,
-    mut extracted: ffi::duckdb_extracted_statements,
+    extracted: ffi::duckdb_extracted_statements,
 ) -> Result<()> {
     if num_statements > 0 {
         return Ok(());
     }
+    Err(unsafe { error_from_duckdb_extract(extracted) })
+}
+
+/// Builds the failure of an extraction that yielded no statement, and destroys
+/// the extracted statements.
+///
+/// # Safety
+///
+/// `extracted` must be null or a live extracted-statements handle. This
+/// function takes ownership of a non-null handle.
+#[cold]
+pub(crate) unsafe fn error_from_duckdb_extract(mut extracted: ffi::duckdb_extracted_statements) -> Error {
     unsafe {
-        let message = if extracted.is_null() {
-            Some("extracted statements are null".to_string())
+        if extracted.is_null() {
+            return duckdb_failure_from_state(ffi::DuckDBError, Some("extracted statements are null".to_string()));
+        }
+        let c_err = ffi::duckdb_extract_statements_error(extracted);
+        let message = if c_err.is_null() {
+            None
         } else {
-            let c_err = ffi::duckdb_extract_statements_error(extracted);
-            let message = if c_err.is_null() {
-                None
-            } else {
-                Some(CStr::from_ptr(c_err).to_string_lossy().to_string())
-            };
-            ffi::duckdb_destroy_extracted(&mut extracted);
-            message
+            Some(CStr::from_ptr(c_err).to_string_lossy().to_string())
         };
-        result_from_duckdb_state(ffi::DuckDBError, message)
+        let error_type = extract_statements_error_type(extracted);
+        ffi::duckdb_destroy_extracted(&mut extracted);
+        duckdb_failure_with_error_type(ffi::DuckDBError, error_type, message)
     }
 }
 
@@ -487,5 +545,100 @@ mod tests {
             }
             err => panic!("unexpected error: {err:?}"),
         }
+    }
+
+    fn error_type_of<T>(result: crate::Result<T>) -> ffi::duckdb_error_type {
+        match result {
+            Ok(_) => panic!("expected a failure"),
+            Err(Error::DuckDBFailure(err, _)) => {
+                assert_eq!(err.extended_code, ffi::DuckDBError);
+                err.error_type
+            }
+            Err(err) => panic!("unexpected error: {err:?}"),
+        }
+    }
+
+    #[test]
+    fn query_failure_carries_error_type() -> crate::Result<()> {
+        let db = crate::Connection::open_in_memory()?;
+
+        assert_eq!(
+            error_type_of(db.execute_batch("SELECT * FROM missing_table")),
+            ffi::duckdb_error_type_DUCKDB_ERROR_CATALOG
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn execute_failure_carries_error_type() -> crate::Result<()> {
+        let db = crate::Connection::open_in_memory()?;
+        db.execute_batch("CREATE TABLE t(i INTEGER PRIMARY KEY); INSERT INTO t VALUES (1)")?;
+        let mut stmt = db.prepare("INSERT INTO t VALUES (?)")?;
+
+        assert_eq!(
+            error_type_of(stmt.execute([1])),
+            ffi::duckdb_error_type_DUCKDB_ERROR_CONSTRAINT
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn streaming_execute_failure_carries_error_type() -> crate::Result<()> {
+        let db = crate::Connection::open_in_memory()?;
+        let mut stmt = db.prepare("SELECT CAST(? AS INTEGER)")?;
+        stmt.raw_bind_parameter(1, "not a number")?;
+
+        assert_eq!(
+            error_type_of(stmt.stmt.execute_streaming()),
+            ffi::duckdb_error_type_DUCKDB_ERROR_CONVERSION
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn prepare_failure_carries_error_type() -> crate::Result<()> {
+        let db = crate::Connection::open_in_memory()?;
+
+        assert_eq!(
+            error_type_of(db.prepare("SELECT * FROM missing_table")),
+            ffi::duckdb_error_type_DUCKDB_ERROR_CATALOG
+        );
+        assert_eq!(
+            error_type_of(db.prepare("SELECT missing_column")),
+            ffi::duckdb_error_type_DUCKDB_ERROR_BINDER
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn extraction_failure_carries_error_type() -> crate::Result<()> {
+        let db = crate::Connection::open_in_memory()?;
+
+        assert_eq!(
+            error_type_of(db.prepare("SELEC 1")),
+            ffi::duckdb_error_type_DUCKDB_ERROR_PARSER
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn appender_failure_carries_no_error_type() -> crate::Result<()> {
+        let db = crate::Connection::open_in_memory()?;
+
+        assert_eq!(
+            error_type_of(db.appender("missing_table")),
+            ffi::duckdb_error_type_DUCKDB_ERROR_INVALID
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn error_type_enters_equality() {
+        let untyped = ffi::Error::new(ffi::DuckDBError);
+        let typed = ffi::Error::with_error_type(ffi::DuckDBError, ffi::duckdb_error_type_DUCKDB_ERROR_PARSER);
+
+        assert_eq!(untyped.error_type, ffi::duckdb_error_type_DUCKDB_ERROR_INVALID);
+        assert_eq!(untyped.extended_code, typed.extended_code);
+        assert_ne!(untyped, typed);
     }
 }
