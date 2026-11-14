@@ -357,10 +357,13 @@ impl InterruptHandle {
 
 #[cfg(test)]
 mod test {
-    use crate::{Connection, Result, ffi};
+    #[cfg(not(feature = "loadable-extension"))]
+    use crate::ffi;
+    use crate::{Connection, Result};
+    use std::panic::{self, AssertUnwindSafe};
+    #[cfg(not(feature = "loadable-extension"))]
     use std::{
         mem,
-        panic::{self, AssertUnwindSafe},
         sync::{
             Arc, Barrier,
             atomic::{AtomicBool, Ordering},
