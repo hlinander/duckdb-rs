@@ -261,13 +261,17 @@ pub(crate) fn duckdb_failure_from_state(code: ffi::duckdb_state, message: Option
     Error::DuckDBFailure(ffi::Error::new(code), message)
 }
 
+// `extended_code` holds the error type here and a `duckdb_state` on every other path.
 #[inline]
 fn duckdb_failure_from_error_type(error_type: ffi::duckdb_error_type, message: Option<String>) -> Error {
-    Error::DuckDBFailure(ffi::Error::new(error_type as ffi::duckdb_state), message)
+    Error::DuckDBFailure(
+        ffi::Error::with_error_type(error_type as ffi::duckdb_state, error_type),
+        message,
+    )
 }
 
 #[inline]
-fn duckdb_failure_with_error_type(
+pub(crate) fn duckdb_failure_with_error_type(
     code: ffi::duckdb_state,
     error_type: ffi::duckdb_error_type,
     message: Option<String>,
@@ -541,6 +545,7 @@ mod tests {
                     err.extended_code,
                     ffi::duckdb_error_type_DUCKDB_ERROR_INTERNAL as ffi::duckdb_state
                 );
+                assert_eq!(err.error_type, ffi::duckdb_error_type_DUCKDB_ERROR_INTERNAL);
                 assert_eq!(message, "synthetic error");
             }
             err => panic!("unexpected error: {err:?}"),
@@ -582,8 +587,9 @@ mod tests {
         Ok(())
     }
 
+    // The failure arises in the execute call, before any chunk is fetched.
     #[test]
-    fn streaming_execute_failure_carries_error_type() -> crate::Result<()> {
+    fn execute_streaming_call_failure_carries_error_type() -> crate::Result<()> {
         let db = crate::Connection::open_in_memory()?;
         let mut stmt = db.prepare("SELECT CAST(? AS INTEGER)")?;
         stmt.raw_bind_parameter(1, "not a number")?;
@@ -591,6 +597,52 @@ mod tests {
         assert_eq!(
             error_type_of(stmt.stmt.execute_streaming()),
             ffi::duckdb_error_type_DUCKDB_ERROR_CONVERSION
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn fetch_failure_after_first_chunk_carries_error_type() -> crate::Result<()> {
+        let db = crate::Connection::open_in_memory()?;
+        // One thread produces the rows in order, and the failing row lies far past the rows
+        // the engine buffers ahead of a fetch.
+        db.execute_batch("SET threads = 1")?;
+        let mut stmt = db.prepare(
+            "SELECT CAST(CASE WHEN i < 10000000 THEN '1' ELSE 'not a number' END AS INTEGER) \
+             FROM range(20000000) AS t(i)",
+        )?;
+
+        stmt.stmt.execute_streaming()?;
+        assert!(stmt.stmt.step()?.is_some(), "the first chunk fetches");
+
+        let mut fetched = 1;
+        let failure = loop {
+            match stmt.stmt.step() {
+                Ok(Some(_)) => fetched += 1,
+                Ok(None) => panic!("the stream ended without a failure after {fetched} chunks"),
+                Err(err) => break err,
+            }
+        };
+        assert_eq!(
+            error_type_of::<()>(Err(failure)),
+            ffi::duckdb_error_type_DUCKDB_ERROR_CONVERSION
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn interrupted_fetch_carries_error_type() -> crate::Result<()> {
+        let db = crate::Connection::open_in_memory()?;
+        let interrupt = db.interrupt_handle();
+        let mut stmt = db.prepare("SELECT i FROM range(100000000) AS t(i)")?;
+
+        stmt.stmt.execute_streaming()?;
+        assert!(stmt.stmt.step()?.is_some());
+        interrupt.interrupt();
+
+        assert_eq!(
+            error_type_of(stmt.stmt.step()),
+            ffi::duckdb_error_type_DUCKDB_ERROR_INTERRUPT
         );
         Ok(())
     }

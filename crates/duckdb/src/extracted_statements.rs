@@ -93,7 +93,7 @@ impl<'conn> ExtractedStatements<'conn> {
                 "extracted statement index {index} is out of range for {count} statements"
             ))),
             Some(true) => Err(duckdb_failure_from_message(format!(
-                "extracted statement {index} was already prepared"
+                "extracted statement {index} was already prepared or run"
             ))),
             Some(consumed) => {
                 *consumed = true;
@@ -213,26 +213,52 @@ mod test {
 
         let _stmt = statements.prepare(0)?;
         let (_, message) = failure(statements.prepare(0));
-        assert!(message.contains("already prepared"), "{message}");
+        assert!(message.contains("already prepared or run"), "{message}");
         let (_, message) = failure(statements.execute_and_discard(0));
-        assert!(message.contains("already prepared"), "{message}");
+        assert!(message.contains("already prepared or run"), "{message}");
 
         statements.execute_and_discard(1)?;
         let (_, message) = failure(statements.execute_and_discard(1));
-        assert!(message.contains("already prepared"), "{message}");
+        assert!(message.contains("already prepared or run"), "{message}");
         let (_, message) = failure(statements.prepare(1));
-        assert!(message.contains("already prepared"), "{message}");
+        assert!(message.contains("already prepared or run"), "{message}");
         assert_eq!(count(&db, "t")?, 1);
 
         // A statement that fails to prepare has left the set as well.
         let (err, _) = failure(statements.prepare(2));
         assert_eq!(err.error_type, ffi::duckdb_error_type_DUCKDB_ERROR_CATALOG);
         let (_, message) = failure(statements.prepare(2));
-        assert!(message.contains("already prepared"), "{message}");
+        assert!(message.contains("already prepared or run"), "{message}");
 
         let (_, message) = failure(statements.prepare(3));
         assert!(message.contains("out of range"), "{message}");
         assert_eq!(statements.len(), 3);
+        Ok(())
+    }
+
+    #[test]
+    fn remaining_indexes_stay_usable_after_a_failure() -> Result<()> {
+        let db = Connection::open_in_memory()?;
+        db.execute_batch("CREATE TABLE t(i INTEGER PRIMARY KEY); INSERT INTO t VALUES (1)")?;
+        let mut statements = db.extract(
+            "INSERT INTO t VALUES (1); INSERT INTO t VALUES (2); SELECT * FROM missing_table; \
+             INSERT INTO t VALUES (3); SELECT count(*) FROM t",
+        )?;
+
+        // Index 0 fails while it runs.
+        let (err, _) = failure(statements.execute_and_discard(0));
+        assert_eq!(err.error_type, ffi::duckdb_error_type_DUCKDB_ERROR_CONSTRAINT);
+        statements.execute_and_discard(1)?;
+        assert_eq!(count(&db, "t")?, 2);
+
+        // Index 2 fails while it is prepared.
+        let (err, _) = failure(statements.prepare(2));
+        assert_eq!(err.error_type, ffi::duckdb_error_type_DUCKDB_ERROR_CATALOG);
+        statements.execute_and_discard(3)?;
+
+        let mut stmt = statements.prepare(4)?;
+        let rows: i64 = stmt.query_row([], |row| row.get(0))?;
+        assert_eq!(rows, 3);
         Ok(())
     }
 

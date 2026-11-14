@@ -18,7 +18,8 @@ use crate::{
     Error,
     core::{LogicalTypeHandle, LogicalTypeId},
     error::{
-        arrow_conversion_failure, duckdb_failure_from_message, result_error_message, result_from_duckdb_error_data,
+        arrow_conversion_failure, duckdb_failure_from_message, duckdb_failure_with_error_type, result_error_message,
+        result_from_duckdb_error_data,
     },
     types::Type,
 };
@@ -260,7 +261,12 @@ impl ExecutedResult {
             let Some(message) = result_error_message(self.result.as_mut_ptr()) else {
                 return Ok(());
             };
-            Err(duckdb_failure_from_message(message))
+            let error_type = ffi::duckdb_result_error_type(self.result.as_mut_ptr());
+            Err(duckdb_failure_with_error_type(
+                ffi::DuckDBError,
+                error_type,
+                Some(message),
+            ))
         }
     }
 

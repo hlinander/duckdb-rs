@@ -3,7 +3,7 @@ use std::{
     mem,
     os::raw::c_char,
     ptr, str,
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex, MutexGuard, PoisonError},
 };
 
 use super::{Appender, Config, Connection, Result, ffi};
@@ -307,7 +307,13 @@ impl InterruptHandle {
     }
 
     fn clear(&self) {
-        *(self.conn.lock().unwrap()) = ptr::null_mut();
+        *self.lock() = ptr::null_mut();
+    }
+
+    // The stored pointer is valid whether or not the mutex is poisoned, so a panic in a
+    // `with_connection` closure leaves the handle usable.
+    fn lock(&self) -> MutexGuard<'_, ffi::duckdb_connection> {
+        self.conn.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
     /// Interrupt the query currently running on the connection this handle was
@@ -317,7 +323,7 @@ impl InterruptHandle {
     ///
     /// See [`crate::Connection::interrupt_handle`] for an example.
     pub fn interrupt(&self) {
-        let db_handle = self.conn.lock().unwrap();
+        let db_handle = self.lock();
 
         if !db_handle.is_null() {
             unsafe {
@@ -335,10 +341,15 @@ impl InterruptHandle {
     /// `f`. [`InterruptHandle::interrupt`] takes the same mutex and waits
     /// while `f` runs.
     ///
+    /// The mutex is not re-entrant. `f` must not call this handle, and must
+    /// not close or drop the connection: each of those takes the mutex that
+    /// `f` runs under and blocks forever. A panic in `f` leaves the handle
+    /// and the connection usable.
+    ///
     /// The pointer is valid outside `f` only for a caller that otherwise
     /// prevents the connection from closing.
     pub fn with_connection<R>(&self, f: impl FnOnce(ffi::duckdb_connection) -> R) -> Option<R> {
-        let db_handle = self.conn.lock().unwrap();
+        let db_handle = self.lock();
 
         if db_handle.is_null() { None } else { Some(f(*db_handle)) }
     }
@@ -349,6 +360,7 @@ mod test {
     use crate::{Connection, Result, ffi};
     use std::{
         mem,
+        panic::{self, AssertUnwindSafe},
         sync::{
             Arc, Barrier,
             atomic::{AtomicBool, Ordering},
@@ -357,6 +369,8 @@ mod test {
         time::Duration,
     };
 
+    // The loadable-extension API struct does not carry `duckdb_resource_totals_read`.
+    #[cfg(not(feature = "loadable-extension"))]
     #[test]
     fn with_connection_passes_the_native_connection() -> Result<()> {
         let db = Connection::open_in_memory()?;
@@ -392,6 +406,45 @@ mod test {
         Ok(())
     }
 
+    #[test]
+    fn panic_in_reader_leaves_interrupt_and_close_usable() -> Result<()> {
+        let db = Connection::open_in_memory()?;
+        let handle = db.interrupt_handle();
+
+        let unwound = panic::catch_unwind(AssertUnwindSafe(|| {
+            handle.with_connection(|_| panic!("reader panics under the mutex"));
+        }));
+        assert!(unwound.is_err());
+
+        handle.interrupt();
+        assert_eq!(handle.with_connection(|con| !con.is_null()), Some(true));
+        db.execute_batch("SELECT 1")?;
+
+        db.db.borrow_mut().close()?;
+        assert!(db.db.borrow().con.is_null(), "close did not disconnect");
+        assert!(handle.with_connection(|_| ()).is_none());
+        handle.interrupt();
+        Ok(())
+    }
+
+    #[test]
+    fn panic_in_reader_leaves_drop_usable() -> Result<()> {
+        let db = Connection::open_in_memory()?;
+        let handle = db.interrupt_handle();
+
+        let unwound = panic::catch_unwind(AssertUnwindSafe(|| {
+            handle.with_connection(|_| panic!("reader panics under the mutex"));
+        }));
+        assert!(unwound.is_err());
+
+        drop(db);
+        assert!(handle.with_connection(|_| ()).is_none());
+        handle.interrupt();
+        Ok(())
+    }
+
+    // The loadable-extension API struct does not carry `duckdb_resource_totals_read`.
+    #[cfg(not(feature = "loadable-extension"))]
     #[test]
     fn close_waits_for_a_reader() -> Result<()> {
         let db = Connection::open_in_memory()?;
