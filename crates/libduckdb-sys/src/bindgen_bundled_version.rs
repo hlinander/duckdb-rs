@@ -293,13 +293,15 @@ pub struct duckdb_query_progress_type {
     pub rows_processed: u64,
     pub total_rows_to_process: u64,
 }
-#[doc = "! Cumulative CPU and IO totals of a connection or of a database. Nothing resets them: a reader takes the difference\n! between two reads."]
+#[doc = "! Cumulative CPU and IO totals of a connection or of a database. Nothing resets them: a reader takes the difference\n! between two reads. `file_bytes_read` and `http_bytes_read` are parts of `bytes_read`: the bytes the local file\n! system read and the bytes the HTTP client read."]
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct duckdb_usage_totals {
     pub cpu_ns: u64,
     pub bytes_read: u64,
     pub bytes_written: u64,
+    pub file_bytes_read: u64,
+    pub http_bytes_read: u64,
 }
 #[doc = "! The totals of a connection and of its database, and the memory marks of the database's buffer pool.\n! `memory_bytes` is the floor of the pool's level, `memory_peak_bytes` is the largest floor since the last\n! `duckdb_begin_measured`, and `memory_byte_ms` is the integral of the floor over time in byte-milliseconds, which\n! a reader subtracts with wrapping arithmetic."]
 #[repr(C)]
